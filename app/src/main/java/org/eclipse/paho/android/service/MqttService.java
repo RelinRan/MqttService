@@ -34,6 +34,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -575,14 +576,17 @@ public class MqttService extends IntentService implements MqttTraceHandler {
             startForeground();
         }
     }
-
-    private static final int NOTIFICATION_ID = 1;
-    private static final String CHANNEL_ID = "mqtt_service_channel";
+    private int notificationId;
+    private String channelId;
 
     private void startForeground() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            String packageName = getPackageName();
+            notificationId = packageName.hashCode()& 0x7FFFFFFF;
+            channelId = "MQTT_SERVICE_CHANNEL_" + packageName.toUpperCase();
+            Log.i(TAG,"start foreground notificationId:"+notificationId+",channelId:"+channelId);
             String channelName = "MQTT Service";
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, channelName, android.app.NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(channelId, channelName, android.app.NotificationManager.IMPORTANCE_LOW);
             channel.setDescription("MQTT connection service");
             channel.setImportance(NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
@@ -590,12 +594,12 @@ public class MqttService extends IntentService implements MqttTraceHandler {
             if (nm != null) {
                 nm.createNotificationChannel(channel);
             }
-            android.app.Notification notification = new Notification.Builder(this, CHANNEL_ID)
+            android.app.Notification notification = new Notification.Builder(this, channelId)
                     .setContentTitle("MQTT Service")
                     .setContentText("Running")
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .build();
-            startForeground(NOTIFICATION_ID, notification);
+            startForeground(notificationId, notification);
         }
     }
 
@@ -609,7 +613,6 @@ public class MqttService extends IntentService implements MqttTraceHandler {
         for (MqttConnection client : connections.values()) {
             client.disconnect(null, null);
         }
-
         // clear down
         if (mqttServiceBinder != null) {
             mqttServiceBinder = null;
@@ -622,7 +625,16 @@ public class MqttService extends IntentService implements MqttTraceHandler {
         unregisterBroadcastReceivers();
 
         if (this.messageStore != null) this.messageStore.close();
-
+        //remove notification
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null && notificationId != 0) {
+                nm.cancel(notificationId);
+            }
+        } else {
+            stopForeground(true);
+        }
         super.onDestroy();
     }
 
