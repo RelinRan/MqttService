@@ -17,6 +17,7 @@ package org.eclipse.paho.android.service;
 
 import static android.os.Build.VERSION.SDK;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.IntentService;
 import android.app.Notification;
@@ -37,6 +38,7 @@ import android.os.PowerManager.WakeLock;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresPermission;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
@@ -596,13 +598,24 @@ public class MqttService extends IntentService implements MqttTraceHandler {
             }
             android.app.Notification notification = new Notification.Builder(this, channelId)
                     .setContentTitle("MQTT Service")
-                    .setContentText("Running")
+                    .setContentText("Protect the app's mqtt foreground survival")
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .build();
             startForeground(notificationId, notification);
         }
     }
 
+
+    /**
+     * Called when the user removes the app from the recent tasks list.
+     * Clear notifications and stop the service cleanly.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.i(TAG, "Task removed, stopping service and clearing notifications");
+        stopSelf();
+        super.onTaskRemoved(rootIntent);
+    }
 
     /**
      * @see Service#onDestroy()
@@ -661,9 +674,7 @@ public class MqttService extends IntentService implements MqttTraceHandler {
      */
     @Override
     public int onStartCommand(final Intent intent, int flags, final int startId) {
-        // run till explicitly stopped, restart when
-        // process restarted
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
 
@@ -818,6 +829,7 @@ public class MqttService extends IntentService implements MqttTraceHandler {
     /**
      * @return whether the android service can be regarded as online
      */
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     public boolean isOnline() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo networkInfo = cm.getActiveNetworkInfo();
